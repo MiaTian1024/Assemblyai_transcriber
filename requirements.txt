@@ -1,0 +1,7 @@
+assemblyai
+fastapi
+mangum
+pytube
+uvicorn
+ffmpeg-python
+
