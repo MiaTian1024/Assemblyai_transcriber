@@ -69,15 +69,23 @@ class VideoProcessor:
         except Exception as e:
             print(f"Error removing files: {e}")
 
-    def transcribe(self, audio_file):
-        api_key = os.getenv('ASSEMBLYAI_API_KEY')
-        if not api_key:
-            raise ValueError("API Key not found. Please set the ASSEMBLYAI_API_KEY environment variable.")
-
-        aai.settings.api_key = api_key   
-        transcriber = aai.Transcriber()
-        transcript = transcriber.transcribe(audio_file)
+    def transcribe(self, audio_file): 
+        transcript = aai.Transcriber().transcribe(audio_file)
         return transcript.text
+    
+    def auto_chapters(self, audio_file): 
+        config = aai.TranscriptionConfig(auto_chapters=True)
+        transcript = aai.Transcriber().transcribe(audio_file, config)
+        return transcript.chapters
+    
+    def summary(self, audio_file): 
+        config = aai.TranscriptionConfig(
+            summarization=True,
+            summary_model=aai.SummarizationModel.informative,
+            summary_type=aai.SummarizationType.bullets
+        )
+        transcript = aai.Transcriber().transcribe(audio_file, config)
+        return transcript.summary
     
 
 video_processor = VideoProcessor()
@@ -98,12 +106,21 @@ async def process_video(content: URL):
 
     if not audio_filename:
         raise HTTPException(status_code=500, detail="An error occurred while downloading the video or audio")
+    
+    api_key = os.getenv('ASSEMBLYAI_API_KEY')
+    if not api_key:
+        raise ValueError("API Key not found. Please set the ASSEMBLYAI_API_KEY environment variable.")
+    aai.settings.api_key = api_key 
 
     transcript_result = video_processor.transcribe(audio_filename)
+    # auto_chapters = video_processor.auto_chapters(audio_filename)
+    # summary = video_processor.summary(audio_filename)
 
     response_data = {
         'video_url': audio_filename,
-        'transcript': transcript_result
+        'transcript': transcript_result,
+        # 'chapters': auto_chapters,
+        # 'summary': summary
     }
 
     # Clean up temporary files
