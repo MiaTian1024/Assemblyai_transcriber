@@ -113,14 +113,14 @@ async def process_video(content: URL):
     aai.settings.api_key = api_key 
 
     transcript_result = video_processor.transcribe(audio_filename)
-    # auto_chapters = video_processor.auto_chapters(audio_filename)
-    # summary = video_processor.summary(audio_filename)
+    auto_chapters = video_processor.auto_chapters(audio_filename)
+    summary = video_processor.summary(audio_filename)
 
     response_data = {
         'video_url': audio_filename,
         'transcript': transcript_result,
-        # 'chapters': auto_chapters,
-        # 'summary': summary
+        'chapters': auto_chapters,
+        'summary': summary
     }
 
     # Clean up temporary files
