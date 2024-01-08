@@ -78,6 +78,11 @@ class VideoProcessor:
         transcript = aai.Transcriber().transcribe(audio_file, config)
         return transcript.chapters
     
+    def entity_detection(self, audio_file): 
+        config = aai.TranscriptionConfig(entity_detection=True)
+        transcript = aai.Transcriber().transcribe(audio_file, config)
+        return transcript.entities
+    
     def summary(self, audio_file): 
         config = aai.TranscriptionConfig(
             summarization=True,
@@ -113,14 +118,16 @@ async def process_video(content: URL):
     aai.settings.api_key = api_key 
 
     transcript_result = video_processor.transcribe(audio_filename)
-    auto_chapters = video_processor.auto_chapters(audio_filename)
-    summary = video_processor.summary(audio_filename)
+    # auto_chapters = video_processor.auto_chapters(audio_filename)
+    entity_detection = video_processor.entity_detection(audio_filename)
+    # summary = video_processor.summary(audio_filename)
 
     response_data = {
         'video_url': audio_filename,
         'transcript': transcript_result,
-        'chapters': auto_chapters,
-        'summary': summary
+        # 'chapters': auto_chapters,  
+        # 'summary': summary,
+        'entity': entity_detection
     }
 
     # Clean up temporary files
