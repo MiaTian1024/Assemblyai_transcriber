@@ -81,7 +81,7 @@ class VideoProcessor:
     def entity_detection(self, audio_file): 
         config = aai.TranscriptionConfig(entity_detection=True)
         transcript = aai.Transcriber().transcribe(audio_file, config)
-        return transcript.entities
+        return transcript
     
     def summary(self, audio_file): 
         config = aai.TranscriptionConfig(
@@ -117,17 +117,14 @@ async def process_video(content: URL):
         raise ValueError("API Key not found. Please set the ASSEMBLYAI_API_KEY environment variable.")
     aai.settings.api_key = api_key 
 
-    transcript_result = video_processor.transcribe(audio_filename)
-    # auto_chapters = video_processor.auto_chapters(audio_filename)
-    entity_detection = video_processor.entity_detection(audio_filename)
-    # summary = video_processor.summary(audio_filename)
-
+    transcript = video_processor.entity_detection(audio_filename)
+    transcript_text = transcript.text
+    transcript_entity = transcript.entities
+  
     response_data = {
         'video_url': audio_filename,
-        'transcript': transcript_result,
-        # 'chapters': auto_chapters,  
-        # 'summary': summary,
-        'entity': entity_detection
+        'transcript': transcript_text,
+        'entity': transcript_entity
     }
 
     # Clean up temporary files
