@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pytube import YouTube
 import os
+import re
+import subprocess
 from pydantic import BaseModel
 import assemblyai as aai
 from mangum import Mangum
@@ -42,24 +44,75 @@ class VideoProcessor:
     def save_audio(self, url):
         # Download the audio stream from a YouTube video and convert it to m4a
         yt = YouTube(url)
-        video = yt.streams.filter(only_audio=True).first()
+        # Select the audio stream
+        try:
+            video = yt.streams.filter(only_audio=True).first()
+            if video is None:
+                raise Exception("No audio stream found")
+        except KeyError as e:
+            print("KeyError encountered when selecting the stream:", e)
+            # Try to select an alternative stream if possible
+            video = yt.streams.filter(only_audio=True).order_by('abr').desc().first()
+            if video is None:
+                print("No alternative audio stream found")
+                return None
 
         # Use /tmp directory for temporary storage
         tmp_directory = '/tmp'
         os.makedirs(tmp_directory, exist_ok=True)
 
-        out_file = video.download(output_path=tmp_directory)
+        try:
+            out_file = video.download(output_path=tmp_directory)
+        except Exception as e:
+            print("Error during download:", e)
+            return None  # or handle the error as needed
+        
         base, ext = os.path.splitext(out_file)
         file_name = base + '.m4a'
 
         try:
-            os.rename(os.path.join(tmp_directory, out_file), os.path.join(tmp_directory, file_name))
-        except:
-            os.remove(os.path.join(tmp_directory, file_name))
-            os.rename(os.path.join(tmp_directory, out_file), os.path.join(tmp_directory, file_name))
+            new_file_path = os.path.join(tmp_directory, file_name)
+            if os.path.exists(new_file_path):
+                os.remove(new_file_path)
+            os.rename(out_file, new_file_path)
+        except Exception as e:
+            print("Error during file conversion:", e)
+            return None  # or handle the error as needed
 
-        return os.path.join(tmp_directory, file_name)
+        return new_file_path
     
+    def download_video_and_extract_audio(self, youtube_url):
+        # Define the output directory
+        output_directory = os.path.join(os.getcwd(), "downloads")
+        os.makedirs(output_directory, exist_ok=True)
+
+        # Download video using youtube-dl and extract the filename
+        try:
+            result = subprocess.run(['youtube-dl', '-o', os.path.join(output_directory, '%(title)s.%(ext)s'), youtube_url], capture_output=True, text=True, check=True)
+            output = result.stdout
+        except subprocess.CalledProcessError as e:
+            print(f"Error downloading video: {e.output}")
+            return None
+
+        # Extract the filename from the output
+        match = re.search(r'\[download\] Destination: (.+)', output)
+        if not match:
+            print("Couldn't extract the video filename.")
+            return None
+        downloaded_video_path = match.group(1)
+
+        # Define the output audio file path
+        output_audio_file = os.path.splitext(downloaded_video_path)[0] + '.mp3'
+
+        # Extract audio using ffmpeg
+        try:
+            subprocess.run(['ffmpeg', '-i', downloaded_video_path, '-vn', '-ab', '128k', '-ar', '44100', '-y', output_audio_file], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error extracting audio: {e}")
+            return None
+
+        return output_audio_file
+ 
     def remove_temporary_files(self, file_path):
         # Remove temporary files from the /tmp directory
         try:
@@ -105,9 +158,11 @@ async def process_video(content: URL):
     url = content.url
     if not url:
         raise HTTPException(status_code=400, detail="Invalid URL")
+    print(url)
 
     # Download youtube video and save to audio, perform transcription
     audio_filename = video_processor.save_audio(url)
+    # audio_filename = video_processor.download_video_and_extract_audio(url)
 
     if not audio_filename:
         raise HTTPException(status_code=500, detail="An error occurred while downloading the video or audio")
