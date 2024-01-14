@@ -3,5 +3,6 @@ fastapi
 mangum
 pytube
 uvicorn
+yt-dlp
 ffmpeg-python
 

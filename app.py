@@ -2,8 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pytube import YouTube
 import os
-import re
-import subprocess
+import yt_dlp
 from pydantic import BaseModel
 import assemblyai as aai
 from mangum import Mangum
@@ -65,7 +64,7 @@ class VideoProcessor:
             out_file = video.download(output_path=tmp_directory)
         except Exception as e:
             print("Error during download:", e)
-            return None  # or handle the error as needed
+            return None 
         
         base, ext = os.path.splitext(out_file)
         file_name = base + '.m4a'
@@ -81,37 +80,41 @@ class VideoProcessor:
 
         return new_file_path
     
-    def download_video_and_extract_audio(self, youtube_url):
-        # Define the output directory
-        output_directory = os.path.join(os.getcwd(), "downloads")
-        os.makedirs(output_directory, exist_ok=True)
+    def save_audio_yt_dlp(self, youtube_url):
+        ydl_opts = {
+            'format': 'm4a/bestaudio/best',  # The best audio version in m4a format
+            'outtmpl': '%(id)s.%(ext)s',  # The output name should be the id followed by the extension
+            'postprocessors': [{  # Extract audio using ffmpeg
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'm4a',
+            }]
+        }
 
-        # Download video using youtube-dl and extract the filename
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:            
+            info = ydl.extract_info(youtube_url, download=False)  # Fetch video information without downloading        
+            video_title = info.get('id', 'Unknown_Title')
+            file_name = f"{video_title}.m4a"         
+            ydl.download([youtube_url])   # Download the video
+    
+        tmp_directory = '/tmp'
+        os.makedirs(tmp_directory, exist_ok=True)
+
         try:
-            result = subprocess.run(['youtube-dl', '-o', os.path.join(output_directory, '%(title)s.%(ext)s'), youtube_url], capture_output=True, text=True, check=True)
-            output = result.stdout
-        except subprocess.CalledProcessError as e:
-            print(f"Error downloading video: {e.output}")
+            new_file_path = os.path.join(tmp_directory, file_name)
+            if os.path.exists(new_file_path):
+                os.remove(new_file_path)
+            os.rename(file_name, new_file_path)
+            print(f"File successfully moved to {new_file_path}")
+        except Exception as e:
+            print("Error during file operation:", e)
+            return None 
+
+        if os.path.exists(new_file_path):
+            return new_file_path
+        else:
+            print(f"File not found: {new_file_path}")
             return None
 
-        # Extract the filename from the output
-        match = re.search(r'\[download\] Destination: (.+)', output)
-        if not match:
-            print("Couldn't extract the video filename.")
-            return None
-        downloaded_video_path = match.group(1)
-
-        # Define the output audio file path
-        output_audio_file = os.path.splitext(downloaded_video_path)[0] + '.mp3'
-
-        # Extract audio using ffmpeg
-        try:
-            subprocess.run(['ffmpeg', '-i', downloaded_video_path, '-vn', '-ab', '128k', '-ar', '44100', '-y', output_audio_file], check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"Error extracting audio: {e}")
-            return None
-
-        return output_audio_file
  
     def remove_temporary_files(self, file_path):
         # Remove temporary files from the /tmp directory
@@ -160,13 +163,22 @@ async def process_video(content: URL):
         raise HTTPException(status_code=400, detail="Invalid URL")
     print(url)
 
-    # Download youtube video and save to audio, perform transcription
-    audio_filename = video_processor.save_audio(url)
-    # audio_filename = video_processor.download_video_and_extract_audio(url)
+    try:
+        # Try using the first method to save audio
+        audio_filename = video_processor.save_audio(url)
+    except Exception as e1:
+        print(f"First method failed due to: {e1}. Trying second method.")
+        try:
+            # If the first method fails, use the second method
+            audio_filename = video_processor.save_audio_yt_dlp(url)
+        except Exception as e2:
+            error_message = f"Failed to process video. First method error: {e1}. Second method error: {e2}"
+            raise HTTPException(status_code=500, detail=error_message)
 
+    # Check if both methods failed
     if not audio_filename:
-        raise HTTPException(status_code=500, detail="An error occurred while downloading the video or audio")
-    
+        raise HTTPException(status_code=500, detail="Both methods failed, but no specific error was caught.")
+
     api_key = os.getenv('ASSEMBLYAI_API_KEY')
     if not api_key:
         raise ValueError("API Key not found. Please set the ASSEMBLYAI_API_KEY environment variable.")
@@ -188,6 +200,37 @@ async def process_video(content: URL):
     return response_data
 
 
+@app.post("/test")
+async def test(content: URL):
+    # Process a video from a given URL
+    url = content.url
+    if not url:
+        raise HTTPException(status_code=400, detail="Invalid URL")
+    print(url)
+    
+    audio_filename = video_processor.save_audio_yt_dlp(url)
+    if not audio_filename:
+        raise HTTPException(status_code=500, detail="Both methods failed, but no specific error was caught.")
+
+    api_key = os.getenv('ASSEMBLYAI_API_KEY')
+    if not api_key:
+        raise ValueError("API Key not found. Please set the ASSEMBLYAI_API_KEY environment variable.")
+    aai.settings.api_key = api_key 
+
+    transcript = video_processor.transcribe(audio_filename)
+
+    response_data = {
+        'video_url': audio_filename,
+        'transcript': transcript  
+    }
+
+    # Clean up temporary files
+    video_processor.remove_temporary_files(audio_filename)
+
+    return response_data
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    
