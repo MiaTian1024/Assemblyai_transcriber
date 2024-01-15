@@ -82,8 +82,8 @@ class VideoProcessor:
     
     def save_audio_yt_dlp(self, youtube_url):
         ydl_opts = {
-            'format': 'm4a/bestaudio/best',  # The best audio version in m4a format
-            'outtmpl': '%(id)s.%(ext)s',  # The output name should be the id followed by the extension
+            'format': 'm4a/bestaudio/best',  
+            'outtmpl': '%(id)s.%(ext)s',  
             'postprocessors': [{  # Extract audio using ffmpeg
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'm4a',
@@ -91,7 +91,7 @@ class VideoProcessor:
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:            
-            info = ydl.extract_info(youtube_url, download=False)  # Fetch video information without downloading        
+            info = ydl.extract_info(youtube_url, download=False) 
             video_title = info.get('id', 'Unknown_Title')
             file_name = f"{video_title}.m4a"         
             ydl.download([youtube_url])   # Download the video
@@ -115,7 +115,6 @@ class VideoProcessor:
             print(f"File not found: {new_file_path}")
             return None
 
- 
     def remove_temporary_files(self, file_path):
         # Remove temporary files from the /tmp directory
         try:
@@ -163,19 +162,24 @@ async def process_video(content: URL):
         raise HTTPException(status_code=400, detail="Invalid URL")
     print(url)
 
+    # try:
+    #     # Try using the first method to save audio
+    #     audio_filename = video_processor.save_audio(url)
+    # except Exception as e1:
+    #     print(f"First method failed due to: {e1}. Trying second method.")
+    #     try:
+    #         # If the first method fails, use the second method
+    #         audio_filename = video_processor.save_audio_yt_dlp(url)
+    #     except Exception as e2:
+    #         error_message = f"Failed to process video. First method error: {e1}. Second method error: {e2}"
+    #         raise HTTPException(status_code=500, detail=error_message)
+        
     try:
-        # Try using the first method to save audio
         audio_filename = video_processor.save_audio(url)
-    except Exception as e1:
-        print(f"First method failed due to: {e1}. Trying second method.")
-        try:
-            # If the first method fails, use the second method
-            audio_filename = video_processor.save_audio_yt_dlp(url)
-        except Exception as e2:
-            error_message = f"Failed to process video. First method error: {e1}. Second method error: {e2}"
-            raise HTTPException(status_code=500, detail=error_message)
+    except Exception as e:
+        error_message = f"Failed to process video. error: {e}"
+        raise HTTPException(status_code=500, detail=error_message)
 
-    # Check if both methods failed
     if not audio_filename:
         raise HTTPException(status_code=500, detail="Both methods failed, but no specific error was caught.")
 
@@ -199,7 +203,6 @@ async def process_video(content: URL):
 
     return response_data
 
-
 @app.post("/test")
 async def test(content: URL):
     # Process a video from a given URL
@@ -210,7 +213,7 @@ async def test(content: URL):
     
     audio_filename = video_processor.save_audio_yt_dlp(url)
     if not audio_filename:
-        raise HTTPException(status_code=500, detail="Both methods failed, but no specific error was caught.")
+        raise HTTPException(status_code=500, detail="Failed to process video.")
 
     api_key = os.getenv('ASSEMBLYAI_API_KEY')
     if not api_key:
@@ -226,6 +229,31 @@ async def test(content: URL):
 
     # Clean up temporary files
     video_processor.remove_temporary_files(audio_filename)
+
+    return response_data
+
+@app.post("/upload")
+async def upload(content: URL):
+    # Process a video from a given URL
+    url = content.url
+    if not url:
+        raise HTTPException(status_code=400, detail="Invalid URL")
+    print(url)
+    
+    api_key = os.getenv('ASSEMBLYAI_API_KEY')
+    if not api_key:
+        raise ValueError("API Key not found. Please set the ASSEMBLYAI_API_KEY environment variable.")
+    aai.settings.api_key = api_key 
+
+    transcript = video_processor.entity_detection(url)
+    transcript_text = transcript.text
+    transcript_entity = transcript.entities
+  
+    response_data = {
+        'video_url': url,
+        'transcript': transcript_text,
+        'entity': transcript_entity
+    }
 
     return response_data
 
