@@ -24,6 +24,16 @@ app.add_middleware(
 )
 
 class VideoProcessor:
+    def get_info(self, url):
+        try:          
+            yt = YouTube(url)  # Create a YouTube object            
+            video_id = yt.video_id  # Get video ID       
+            video_length = yt.length  # Get video length in seconds
+            return video_id, video_length
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return None, None
+
     def save_video(self, url, video_filename):
         # Download the highest resolution video from YouTube given a URL
         youtube_object = YouTube(url)
@@ -260,6 +270,23 @@ async def upload(content: URL):
         'transcript': transcript_text,
         'entity': transcript_entity,
         'utterance': transcript_utterance
+    }
+
+    return response_data
+
+@app.post("/info")
+async def info(content: URL):
+    # Process a video from a given URL
+    url = content.url
+    if not url:
+        raise HTTPException(status_code=400, detail="Invalid URL")
+    print(url)
+    
+    video_id, video_length = video_processor.get_info(url)
+  
+    response_data = {
+        'video_id': video_id,
+        'video_length': video_length
     }
 
     return response_data
