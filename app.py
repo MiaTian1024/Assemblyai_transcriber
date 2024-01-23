@@ -143,7 +143,6 @@ class VideoProcessor:
     
         return file_name
 
-
     def remove_temporary_files(self, file_path):
         # Remove temporary files from the /tmp directory
         try:
@@ -310,7 +309,6 @@ async def info(content: URL):
 
     return response_data
 
-
 @app.post("/local")
 async def local(content: URL):
     # Process a video from a given URL
@@ -339,7 +337,6 @@ async def local(content: URL):
     # video_processor.remove_temporary_files(audio_filename)
 
     return response_data
-
 
 
 if __name__ == "__main__":
