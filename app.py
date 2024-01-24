@@ -13,7 +13,9 @@ class URL(BaseModel):
 app = FastAPI()
 handler = Mangum(app)
 
-origins = ["https://aistudio.contentedai.com"]
+origins = ["https://aistudio.contentedai.com",
+           "https://news.contentedai.com"
+          ]
 
 app.add_middleware(
     CORSMiddleware,
