@@ -340,6 +340,46 @@ async def local(content: URL):
 
     return response_data
 
+@app.post("/detection")
+async def video_detection(content: URL):
+    # Process a video from a given URL
+    url = content.url
+    if not url:
+        raise HTTPException(status_code=400, detail="Invalid URL")
+    print(url)
+
+    try:
+        audio_filename = video_processor.save_audio(url)
+    except Exception as e:
+        error_message = f"Failed to process video. error: {e}"
+        raise HTTPException(status_code=500, detail=error_message)
+
+    if not audio_filename:
+        raise HTTPException(status_code=500, detail="Both methods failed, but no specific error was caught.")
+
+    api_key = os.getenv('ASSEMBLYAI_API_KEY')
+    if not api_key:
+        raise ValueError("API Key not found. Please set the ASSEMBLYAI_API_KEY environment variable.")
+    aai.settings.api_key = api_key 
+
+    transcript = video_processor.entity_detection(audio_filename)
+    transcript_text = transcript.text
+    transcript_entity = transcript.entities
+    transcript_utterance = transcript.utterances
+  
+    response_data = {
+        'video_url': audio_filename,
+        'transcript': transcript_text,
+        'entity': transcript_entity,
+        'utterance': transcript_utterance
+    }
+
+    # Clean up temporary files
+    video_processor.remove_temporary_files(audio_filename)
+
+    return response_data
+
+
 
 if __name__ == "__main__":
     import uvicorn
