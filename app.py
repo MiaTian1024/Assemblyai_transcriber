@@ -180,6 +180,34 @@ class VideoProcessor:
         transcript = aai.Transcriber().transcribe(audio_file, config)
         return transcript.summary
     
+    def utterances_list(self, utterance_detection, type):
+        if not isinstance(utterance_detection, list):
+            raise ValueError("utteranceDetection should be a list")
+
+        utterance_list = set()
+        handlers = {
+            "text": lambda utterance: f"Speaker {utterance['speaker']}: {utterance['text']}",
+            "speaker": lambda utterance: f"Speaker {utterance['speaker']}",
+            "start": lambda utterance: utterance['start'],
+            "end": lambda utterance: utterance['end'],
+        }
+
+        for utterance in utterance_detection:
+            if type in handlers:
+                utterance_list.add(handlers[type](utterance))
+            else:
+                print(f"Unknown type: {type}")  # or raise an exception
+
+        return list(utterance_list)
+
+    def entities_list(self, entity_detection, entity_type):
+        entity_list = set()
+
+        for entity in entity_detection:
+            if entity_type == entity['entity_type']:
+                entity_list.add(entity['text'])
+
+        return list(entity_list)
 
 video_processor = VideoProcessor()
 
@@ -364,21 +392,30 @@ async def video_detection(content: URL):
 
     transcript = video_processor.entity_detection(audio_filename)
     transcript_text = transcript.text
-    transcript_entity = transcript.entities
-    transcript_utterance = transcript.utterances
+    entity_list_person = video_processor.entities_list(transcript.entities, "person_name")
+    entity_list_organization = video_processor.entities_list(transcript.entities, "organization")
+    entity_list_location = video_processor.entities_list(transcript.entities, "location")
+    utterance_list_text = video_processor.utterances_list(transcript.utterances, "text")
+    utterance_list_speaker = video_processor.utterances_list(transcript.utterances, "speaker")
+    utterance_list_start = video_processor.utterances_list(transcript.utterances, "start")
+    utterance_list_end = video_processor.utterances_list(transcript.utterances, "end")
   
     response_data = {
         'video_url': audio_filename,
         'transcript': transcript_text,
-        'entity': transcript_entity,
-        'utterance': transcript_utterance
+        'entity_person': entity_list_person,
+        'entity_organization': entity_list_organization,
+        'entity_location': entity_list_location,
+        'utterance_text': utterance_list_text,
+        'utterance_speaker': utterance_list_speaker,
+        'utterance_start': utterance_list_start,
+        'utterance_end': utterance_list_end
     }
 
     # Clean up temporary files
     video_processor.remove_temporary_files(audio_filename)
 
     return response_data
-
 
 
 if __name__ == "__main__":
