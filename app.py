@@ -55,32 +55,17 @@ class VideoProcessor:
     def save_audio(self, url):
         # Download the audio stream from a YouTube video and convert it to m4a
         yt = YouTube(url)
-        # Select the audio stream
-        try:
-            video = yt.streams.filter(only_audio=True).first()
-            if video is None:
-                raise Exception("No audio stream found")
-        except KeyError as e:
-            print("KeyError encountered when selecting the stream:", e)
-            # Try to select an alternative stream if possible
-            video = yt.streams.filter(only_audio=True).order_by('abr').desc().first()
-            if video is None:
-                print("No alternative audio stream found")
-                return None
-
+        video = yt.streams.filter(only_audio=True).first()
         # Use /tmp directory for temporary storage
         tmp_directory = '/tmp'
         os.makedirs(tmp_directory, exist_ok=True)
-
         try:
             out_file = video.download(output_path=tmp_directory)
         except Exception as e:
             print("Error during download:", e)
-            return None 
-        
+            return None      
         base, ext = os.path.splitext(out_file)
         file_name = base + '.m4a'
-
         try:
             new_file_path = os.path.join(tmp_directory, file_name)
             if os.path.exists(new_file_path):
@@ -89,7 +74,6 @@ class VideoProcessor:
         except Exception as e:
             print("Error during file conversion:", e)
             return None  # or handle the error as needed
-
         return new_file_path
     
     def save_audio_yt_dlp(self, youtube_url):
@@ -223,18 +207,6 @@ async def process_video(content: URL):
         raise HTTPException(status_code=400, detail="Invalid URL")
     print(url)
 
-    # try:
-    #     # Try using the first method to save audio
-    #     audio_filename = video_processor.save_audio(url)
-    # except Exception as e1:
-    #     print(f"First method failed due to: {e1}. Trying second method.")
-    #     try:
-    #         # If the first method fails, use the second method
-    #         audio_filename = video_processor.save_audio_yt_dlp(url)
-    #     except Exception as e2:
-    #         error_message = f"Failed to process video. First method error: {e1}. Second method error: {e2}"
-    #         raise HTTPException(status_code=500, detail=error_message)
-        
     try:
         audio_filename = video_processor.save_audio(url)
     except Exception as e:
@@ -242,7 +214,7 @@ async def process_video(content: URL):
         raise HTTPException(status_code=500, detail=error_message)
 
     if not audio_filename:
-        raise HTTPException(status_code=500, detail="Both methods failed, but no specific error was caught.")
+        raise HTTPException(status_code=500, detail="Failed to process video.")
 
     api_key = os.getenv('ASSEMBLYAI_API_KEY')
     if not api_key:
