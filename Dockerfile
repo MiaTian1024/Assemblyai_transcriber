@@ -6,7 +6,7 @@ COPY requirements.txt ${LAMBDA_TASK_ROOT}
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# # Ensure the directory exists and copy the modified cipher.py from your host to the container
+# Ensure the directory exists and copy the modified cipher.py from your host to the container
 RUN mkdir -p /var/lang/lib/python3.11/site-packages/pytube
 COPY cipher.py /var/lang/lib/python3.11/site-packages/pytube/cipher.py
 
