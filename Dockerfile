@@ -7,8 +7,8 @@ COPY requirements.txt ${LAMBDA_TASK_ROOT}
 RUN pip install --no-cache-dir -r requirements.txt
 
 # # Ensure the directory exists and copy the modified cipher.py from your host to the container
-RUN mkdir -p ${LAMBDA_TASK_ROOT}/lib/python3.11/site-packages/pytube
-COPY venv/lib/python3.11/site-packages/pytube/cipher.py ${LAMBDA_TASK_ROOT}/lib/python3.11/site-packages/pytube/cipher.py
+RUN mkdir -p /var/lang/lib/python3.11/site-packages/pytube
+COPY cipher.py /var/lang/lib/python3.11/site-packages/pytube/cipher.py
 
 # Copy function code
 COPY app.py ${LAMBDA_TASK_ROOT}
